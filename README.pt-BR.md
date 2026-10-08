@@ -4,7 +4,7 @@
 
 # boink
 
-**Cola o link, recebe o vídeo.** Um app pequeno para Windows que baixa vídeo e áudio do YouTube e de [mais de mil outros sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
+**Cola o link, recebe o vídeo.** Um app pequeno pra Windows que baixa vídeo e áudio do YouTube e de [mais de mil outros sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
 
 [**Baixar para Windows**](https://github.com/w-felipe360/boink/releases/latest) · [English](README.md)
 
@@ -14,29 +14,32 @@
 
 ## O que ele faz
 
-- **Cola e pronto.** Um link ou uma lista inteira de uma vez. Eles baixam um depois do outro, numa fila em que dá para cancelar, tentar de novo ou limpar.
-- **Três modos:** vídeo com som, só áudio (mp3, m4a ou opus) ou vídeo sem som.
-- **Arquivos de tamanho razoável.** 720p por padrão, preferindo 30 fps e H.264/AAC, para os arquivos ficarem leves e tocarem em qualquer lugar. Dá para escolher 480p, 1080p ou máxima nos ajustes.
-- **Progresso de verdade** em cada item, e botões para abrir o arquivo, mostrar na pasta ou copiar o caminho.
-- **A sua pasta.** Salva em `Downloads\boink` por padrão, ou na pasta que você escolher.
-- **Um boink quando termina.** Escolha o bonk do meme, um som clássico mais suave, ou silêncio.
-- **Português e inglês**, seguindo o idioma do Windows, com troca nos ajustes.
-- Sem conta, sem anúncio, sem rastreamento. Tudo roda no seu computador.
+Você cola um link, ou uma lista inteira de uma vez, e o boink baixa um depois do outro. Na fila dá pra cancelar, tentar de novo e limpar o que já terminou, e cada item mostra o progresso real do download.
+
+São três jeitos de baixar: vídeo com som, só o áudio (mp3, m4a ou opus) ou o vídeo sem som.
+
+O padrão é 720p, de preferência a 30 fps e em H.264/AAC. Assim os arquivos ficam leves e abrem em qualquer player. Se precisar de outra qualidade, os ajustes têm 480p, 1080p e máxima.
+
+Tudo vai pra `Downloads\boink`, a não ser que você escolha outra pasta. Quando o download termina, um clique abre o arquivo, e do lado tem botões pra mostrar ele na pasta ou copiar o caminho completo.
+
+E sim, toca um boink no final. Se o bonk do meme cansar, tem um som clássico mais suave, ou silêncio.
+
+A interface está em português e inglês e segue o idioma do Windows (dá pra trocar nos ajustes). Não tem conta nem anúncio, e ninguém fica rastreando o que você baixa: tudo roda no seu computador.
 
 <img src="docs/screenshot-settings-pt.png" width="720" alt="Ajustes do boink: formato de áudio, pasta de destino, som ao terminar e idioma" />
 
 ## Instalar
 
 1. Baixe o `boink_x.y.z_x64-setup.exe` da [última release](https://github.com/w-felipe360/boink/releases/latest).
-2. Execute. Ele instala só para o seu usuário, sem pedir permissão de administrador.
+2. Rode o instalador. Ele instala só pro seu usuário, sem pedir permissão de administrador.
 
-Precisa de Windows 10 ou 11 (64 bits). O instalador configura o Microsoft Edge WebView2 se ele não estiver instalado.
+Funciona no Windows 10 e 11 (64 bits). Se o computador não tiver o Microsoft Edge WebView2, o instalador configura.
 
-> **"O Windows protegeu o computador"?** O instalador ainda não tem assinatura digital, então o SmartScreen avisa. Clique em **Mais informações → Executar assim mesmo**. Você também pode compilar o app a partir do código (abaixo).
+> **Apareceu "O Windows protegeu o computador"?** O instalador ainda não tem assinatura digital, então o SmartScreen desconfia dele. Clique em **Mais informações → Executar assim mesmo**. Se você prefere não rodar .exe de desconhecido (justo), dá pra compilar o app a partir do código, como explicado abaixo.
 
 ## Compilar a partir do código
 
-Você vai precisar do [Node.js](https://nodejs.org) 20+, do [Rust](https://rustup.rs) e dos [pré-requisitos do Tauri para Windows](https://v2.tauri.app/start/prerequisites/) (Microsoft C++ Build Tools e WebView2).
+Você vai precisar do [Node.js](https://nodejs.org) 20+, do [Rust](https://rustup.rs) e dos [pré-requisitos do Tauri pra Windows](https://v2.tauri.app/start/prerequisites/) (Microsoft C++ Build Tools e WebView2).
 
 ```powershell
 git clone https://github.com/w-felipe360/boink.git
@@ -49,27 +52,30 @@ npm run tauri build   # gera o instalador em src-tauri/target/release/bundle/nsi
 
 ### Releases
 
-As releases são geradas pelo GitHub Actions numa máquina Windows:
+Quem gera as releases é o GitHub Actions, numa máquina Windows.
 
-- **Nova versão:** `npm run set-version -- patch` (ou `minor`, `major`, `x.y.z`), faça o commit e depois `git tag vX.Y.Z && git push --follow-tags`. O [`release.yml`](.github/workflows/release.yml) gera o instalador e publica a release.
-- **As atualizações do yt-dlp saem sozinhas.** Os sites mudam bastante e o yt-dlp acompanha, então toda segunda-feira o [`update-yt-dlp.yml`](.github/workflows/update-yt-dlp.yml) confere se saiu yt-dlp novo. Se saiu, fixa a nova versão no [`sidecars.json`](sidecars.json), sobe a versão de correção e publica um instalador novo.
-- **Build de teste:** rode o workflow *release* manualmente pela aba Actions. O instalador fica guardado como artefato do workflow e nada é publicado.
+Pra lançar uma versão nova, rode `npm run set-version -- patch` (ou `minor`, `major`, `x.y.z`), faça o commit e depois `git tag vX.Y.Z && git push --follow-tags`. O [`release.yml`](.github/workflows/release.yml) gera o instalador e publica a release.
 
-Localmente, `npm run sidecars -- -Latest` testa o yt-dlp mais novo sem mudar a versão fixada.
+O yt-dlp se atualiza sozinho. Os sites mudam o tempo todo e o yt-dlp corre atrás, então toda segunda-feira o [`update-yt-dlp.yml`](.github/workflows/update-yt-dlp.yml) confere se saiu versão nova. Se saiu, ele fixa essa versão no [`sidecars.json`](sidecars.json), sobe a versão de correção do boink e publica um instalador novo.
+
+Pra testar um build sem publicar nada, rode o workflow *release* manualmente pela aba Actions. O instalador fica guardado como artefato do workflow.
+
+Na sua máquina, `npm run sidecars -- -Latest` testa o yt-dlp mais novo sem mexer na versão fixada.
 
 ### Como funciona
 
-A interface é React + TypeScript (`src/`). O lado em Rust (`src-tauri/src/lib.rs`) executa o [yt-dlp](https://github.com/yt-dlp/yt-dlp) e o [ffmpeg](https://ffmpeg.org) como processos incluídos no app (sidecars), envia o progresso para a interface e cuida de cancelamento, pastas e abertura de arquivos.
+A interface é React + TypeScript (`src/`). O lado em Rust (`src-tauri/src/lib.rs`) roda o [yt-dlp](https://github.com/yt-dlp/yt-dlp) e o [ffmpeg](https://ffmpeg.org) como programas embutidos no app (os sidecars), manda o progresso pra interface e cuida de cancelar downloads, criar pastas e abrir arquivos.
 
-Duas escolhas que vale conhecer:
+Duas coisas aí podem parecer estranhas à primeira vista.
 
-- **O yt-dlp sempre roda com `--force-ipv4`.** Em redes onde o IPv6 está configurado mas não funciona de fato, o yt-dlp trava para sempre em sites que publicam endereços IPv6 (o YouTube incluso). Todo site ainda atende por IPv4, então não se perde nada.
-- **Downloads "sem som"** pegam um stream só de vídeo quando o site oferece. Senão, o ffmpeg remove a faixa de áudio depois, sem recodificar.
+O yt-dlp sempre roda com `--force-ipv4`. Tem rede em que o IPv6 está configurado mas não funciona de verdade, e nela o yt-dlp trava pra sempre em sites com endereço IPv6, o YouTube incluso. Foi assim que o problema apareceu na rede onde o boink foi feito. Como todo site ainda atende por IPv4, não se perde nada.
+
+O modo "sem som" pega um stream só de vídeo quando o site oferece. Quando não oferece, o ffmpeg tira a faixa de áudio depois, sem recodificar o vídeo.
 
 ## Use com responsabilidade
 
-O boink é uma ferramenta para salvar mídia que você tem direito de baixar: seus próprios vídeos, conteúdo Creative Commons ou em domínio público, material cuja licença permite. Respeite os direitos autorais e os termos de uso de cada site.
+O boink serve pra salvar mídia que você tem direito de baixar, como os seus próprios vídeos, conteúdo Creative Commons ou em domínio público e material cuja licença permite. Respeite os direitos autorais e os termos de uso de cada site.
 
 ## Licença
 
-O boink usa a [licença MIT](LICENSE). O instalador também inclui o yt-dlp (Unlicense), o FFmpeg (GPL-3.0) e outros componentes com suas próprias licenças; veja [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+O boink usa a [licença MIT](LICENSE). O instalador também traz o yt-dlp (Unlicense), o FFmpeg (GPL-3.0) e outros componentes, cada um com a sua licença. A lista completa está em [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

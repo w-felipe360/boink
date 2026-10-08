@@ -50,7 +50,15 @@ npm run tauri dev     # run in development
 npm run tauri build   # build the installer into src-tauri/target/release/bundle/nsis
 ```
 
-To update the bundled yt-dlp (sites change often and yt-dlp keeps up), run `npm run sidecars -- -Force` and rebuild.
+### Releases
+
+Releases are built by GitHub Actions on a Windows runner:
+
+- **New version:** `npm run set-version -- patch` (or `minor`, `major`, `x.y.z`), commit, then `git tag vX.Y.Z && git push --follow-tags`. [`release.yml`](.github/workflows/release.yml) builds the installer and publishes the release.
+- **yt-dlp updates ship by themselves.** Sites change often and yt-dlp keeps up, so every Monday [`update-yt-dlp.yml`](.github/workflows/update-yt-dlp.yml) checks for a new yt-dlp. If there is one, it pins it in [`sidecars.json`](sidecars.json), bumps the patch version and releases a new installer.
+- **Test build:** run the *release* workflow by hand from the Actions tab. The installer is kept as a workflow artifact and nothing gets published.
+
+Locally, `npm run sidecars -- -Latest` tries the newest yt-dlp without changing the pin.
 
 ### How it works
 

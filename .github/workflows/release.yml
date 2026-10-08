@@ -1,0 +1,127 @@
+# Builds the Windows installer and publishes it as a GitHub release.
+#
+# - Push a tag `vX.Y.Z` (matching package.json) to release that version.
+# - Run it by hand from the Actions tab to test a build: the installer is kept as a
+#   workflow artifact, nothing is published unless "publish" is ticked.
+# - update-yt-dlp.yml calls it after bumping yt-dlp (tags pushed by a workflow don't
+#   trigger other workflows, so it's called directly).
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a release for the version in package.json"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag to build and release, e.g. v0.1.1"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    # one release build at a time; set on the job so a calling workflow can't deadlock on it
+    concurrency:
+      group: release-build
+      cancel-in-progress: false
+    env:
+      # Set when there's something to publish: a pushed tag or a tag from update-yt-dlp.
+      TAG: ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Fetch yt-dlp and ffmpeg
+        run: npm run sidecars
+
+      - name: Work out the version
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$TAG" ] && [ "$TAG" != "v$version" ]; then
+            echo "::error::tag $TAG doesn't match package.json version $version"
+            exit 1
+          fi
+          if [ -z "$TAG" ] && [ "${{ inputs.publish }}" = "true" ]; then
+            echo "TAG=v$version" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build installer
+        run: npm run tauri build
+
+      - name: Collect installer and notes
+        id: dist
+        run: |
+          version=${{ steps.version.outputs.version }}
+          exe="src-tauri/target/release/bundle/nsis/boink_${version}_x64-setup.exe"
+          test -f "$exe"
+          sha=$(sha256sum "$exe" | cut -d' ' -f1)
+          size=$(( $(stat -c %s "$exe") / 1048576 ))
+          ytdlp=$(src-tauri/bin/yt-dlp-x86_64-pc-windows-msvc.exe --version)
+          ffmpeg=$(src-tauri/bin/ffmpeg-x86_64-pc-windows-msvc.exe -hide_banner -version | head -1 | cut -d' ' -f3)
+          echo "exe=$exe" >> "$GITHUB_OUTPUT"
+          url="https://github.com/${{ github.repository }}/releases/download/v${version}/boink_${version}_x64-setup.exe"
+          cat > notes.md <<EOF
+          ### Download
+
+          **[boink_${version}_x64-setup.exe](${url})** (${size} MB). Windows 10/11, 64-bit. Installs for your user only, no admin rights needed.
+
+          The installer isn't code-signed yet, so Windows SmartScreen may warn about it: click **More info → Run anyway**.
+
+          **Português:** baixe o instalador acima (Windows 10/11, 64 bits). Se o SmartScreen avisar, clique em **Mais informações → Executar assim mesmo**.
+
+          ### Bundled tools
+
+          - yt-dlp \`${ytdlp}\`
+          - FFmpeg \`${ffmpeg}\` ([BtbN](https://github.com/BtbN/FFmpeg-Builds) GPL build, source at [git.ffmpeg.org](https://git.ffmpeg.org/ffmpeg.git) for the commit after \`-g\`), see [THIRD-PARTY-NOTICES.md](https://github.com/${{ github.repository }}/blob/v${version}/THIRD-PARTY-NOTICES.md)
+
+          SHA-256 \`boink_${version}_x64-setup.exe\`: \`${sha}\`
+          EOF
+          cat notes.md
+
+      - name: Keep installer as an artifact
+        if: env.TAG == ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: boink-installer
+          path: ${{ steps.dist.outputs.exe }}
+
+      - name: Publish release
+        if: env.TAG != ''
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${{ steps.dist.outputs.exe }}" --clobber
+          else
+            gh release create "$TAG" "${{ steps.dist.outputs.exe }}" \
+              --title "boink ${TAG#v}" --notes-file notes.md --generate-notes \
+              --target "$(git rev-parse HEAD)"
+          fi

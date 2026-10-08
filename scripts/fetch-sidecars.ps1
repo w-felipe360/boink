@@ -1,13 +1,18 @@
 # Downloads the yt-dlp and ffmpeg executables that boink bundles as Tauri sidecars.
 # They're too big for git (ffmpeg alone is ~160 MB), so every clone fetches them once:
 #
-#   powershell -ExecutionPolicy Bypass -File scripts/fetch-sidecars.ps1
+#   npm run sidecars
 #
-# Pass -Force to replace binaries that are already there (e.g. to update yt-dlp).
+# yt-dlp is pinned in sidecars.json so every build of a given commit ships the same
+# version; the weekly GitHub workflow bumps it. ffmpeg is the latest BtbN GPL build.
+#
+#   -Force   re-download even if the binaries are already there
+#   -Latest  ignore the pin and take the newest yt-dlp (to try one out locally)
 
 param(
   [string]$Dest = (Join-Path $PSScriptRoot "..\src-tauri\bin"),
-  [switch]$Force
+  [switch]$Force,
+  [switch]$Latest
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,12 +23,18 @@ $ProgressPreference = "SilentlyContinue" # Invoke-WebRequest is painfully slow w
 $triple = "x86_64-pc-windows-msvc"
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
 
+$pin = (Get-Content (Join-Path $PSScriptRoot "..\sidecars.json") -Raw | ConvertFrom-Json)."yt-dlp"
 $ytdlp = Join-Path $Dest "yt-dlp-$triple.exe"
-if ($Force -or -not (Test-Path $ytdlp)) {
-  Write-Host "Downloading yt-dlp..."
+$current = if (Test-Path $ytdlp) { (& $ytdlp --version).Trim() } else { $null }
+
+if ($Latest) {
+  Write-Host "Downloading the latest yt-dlp (ignoring the $pin pin)..."
   Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile $ytdlp
+} elseif ($Force -or $current -ne $pin) {
+  Write-Host "Downloading yt-dlp $pin..."
+  Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/download/$pin/yt-dlp.exe" -OutFile $ytdlp
 } else {
-  Write-Host "yt-dlp already present, skipping (use -Force to update)"
+  Write-Host "yt-dlp $pin already present"
 }
 
 $ffmpeg = Join-Path $Dest "ffmpeg-$triple.exe"
@@ -42,7 +53,7 @@ if ($Force -or -not (Test-Path $ffmpeg)) {
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
   }
 } else {
-  Write-Host "ffmpeg already present, skipping (use -Force to update)"
+  Write-Host "ffmpeg already present (use -Force to update)"
 }
 
 & $ytdlp --version | ForEach-Object { Write-Host "yt-dlp $_" }

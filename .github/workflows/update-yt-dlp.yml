@@ -1,0 +1,62 @@
+# Sites change all the time and yt-dlp keeps up, so an installer with an old yt-dlp
+# slowly stops working. Once a week this checks for a new yt-dlp release; if there is
+# one it pins it in sidecars.json, bumps boink's patch version, tags it and ships a
+# new installer through release.yml. Also runnable by hand from the Actions tab.
+
+name: update-yt-dlp
+
+on:
+  schedule:
+    - cron: "17 9 * * 1" # Mondays 09:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: update-yt-dlp
+      cancel-in-progress: false
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Compare pinned and latest yt-dlp
+        id: versions
+        run: |
+          pinned=$(jq -r '."yt-dlp"' sidecars.json)
+          latest=$(gh api repos/yt-dlp/yt-dlp/releases/latest --jq .tag_name)
+          echo "pinned $pinned, latest $latest"
+          echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+
+      - name: Pin the new yt-dlp, bump version, tag
+        id: bump
+        if: steps.versions.outputs.latest != steps.versions.outputs.pinned
+        env:
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          jq --arg v "$LATEST" '."yt-dlp" = $v' sidecars.json > sidecars.tmp && mv sidecars.tmp sidecars.json
+          version=$(node scripts/set-version.mjs patch)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: update yt-dlp to $LATEST, release v$version"
+          git tag "v$version"
+          git push origin HEAD:main "v$version"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: check
+    if: needs.check.outputs.tag != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.check.outputs.tag }}

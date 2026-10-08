@@ -15,7 +15,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "sidecars": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-sidecars.ps1"
+    "sidecars": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-sidecars.ps1",
+    "set-version": "node scripts/set-version.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

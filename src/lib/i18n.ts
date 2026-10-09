@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { AudioFormat, Quality, SoundEffect } from "./settings";
+import type { UpdateMode } from "./updater";
 
 export type Lang = "pt" | "en";
 
@@ -82,6 +83,9 @@ const pt = {
     >,
     language: "Idioma",
     languageHint: "Idioma da interface.",
+    updates: "Atualizações",
+    updatesHint: "Ao abrir, o boink confere no GitHub se saiu versão nova.",
+    updateLabels: { auto: "instalar sozinho", notify: "só avisar" } as Record<UpdateMode, string>,
   },
 
   about: {
@@ -96,6 +100,23 @@ const pt = {
     },
     version: "versão",
     source: "código-fonte",
+    checkUpdates: "procurar atualização",
+  },
+
+  update: {
+    checking: "procurando atualização…",
+    latest: "você já está na versão mais nova",
+    available: (v: string) => `saiu o boink ${v}`,
+    downloading: (v: string) => `baixando o boink ${v}…`,
+    ready: (v: string) => `o boink ${v} está pronto. O app fecha e abre de novo pra instalar.`,
+    installing: (v: string) => `instalando o boink ${v}…`,
+    error: (detail: string) => `não deu pra atualizar: ${detail}`,
+    offline: "não deu pra procurar atualização: o GitHub não respondeu",
+    badSignature: "a atualização não passou na verificação de assinatura e foi descartada",
+    update: "atualizar",
+    install: "instalar agora",
+    waitQueue: "espera a fila terminar",
+    dismiss: "fechar aviso",
   },
 
   errors: {
@@ -176,6 +197,9 @@ const en: Strings = {
     soundLabels: { boink: "boink", classic: "classic", none: "none" },
     language: "Language",
     languageHint: "Interface language.",
+    updates: "Updates",
+    updatesHint: "When it opens, boink checks GitHub for a new version.",
+    updateLabels: { auto: "install on its own", notify: "just tell me" },
   },
 
   about: {
@@ -190,6 +214,23 @@ const en: Strings = {
     },
     version: "version",
     source: "source code",
+    checkUpdates: "check for updates",
+  },
+
+  update: {
+    checking: "checking for updates…",
+    latest: "you're on the latest version",
+    available: (v: string) => `boink ${v} is out`,
+    downloading: (v: string) => `downloading boink ${v}…`,
+    ready: (v: string) => `boink ${v} is ready. The app closes and reopens to install it.`,
+    installing: (v: string) => `installing boink ${v}…`,
+    error: (detail: string) => `couldn't update: ${detail}`,
+    offline: "couldn't check for updates: GitHub didn't answer",
+    badSignature: "the update failed its signature check and was discarded",
+    update: "update",
+    install: "install now",
+    waitQueue: "wait for the queue to finish",
+    dismiss: "dismiss",
   },
 
   errors: {

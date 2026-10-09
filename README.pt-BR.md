@@ -24,6 +24,8 @@ Tudo vai pra `Downloads\boink`, a não ser que você escolha outra pasta. Quando
 
 E sim, toca um boink no final. Se o bonk do meme cansar, tem um som clássico mais suave, ou silêncio.
 
+Ele também se mantém atualizado. Toda vez que você abre, o boink confere se saiu versão nova e instala sozinho, ou só avisa, se você preferir assim nos ajustes. Ele nunca reinicia no meio de um download.
+
 A interface está em português e inglês e segue o idioma do Windows (dá pra trocar nos ajustes). Não tem conta nem anúncio, e ninguém fica rastreando o que você baixa: tudo roda no seu computador.
 
 <img src="docs/screenshot-settings-pt.png" width="720" alt="Ajustes do boink: formato de áudio, pasta de destino, som ao terminar e idioma" />
@@ -59,6 +61,8 @@ Pra lançar uma versão nova, rode `npm run set-version -- patch` (ou `minor`, `
 O yt-dlp se atualiza sozinho. Os sites mudam o tempo todo e o yt-dlp corre atrás, então toda segunda-feira o [`update-yt-dlp.yml`](.github/workflows/update-yt-dlp.yml) confere se saiu versão nova. Se saiu, ele fixa essa versão no [`sidecars.json`](sidecars.json), sobe a versão de correção do boink e publica um instalador novo.
 
 Pra testar um build sem publicar nada, rode o workflow *release* manualmente pela aba Actions. O instalador fica guardado como artefato do workflow.
+
+A atualização dentro do app funciona assim: toda release leva um `latest.json`, que as cópias instaladas leem ao abrir. O instalador é assinado pro updater com o secret `TAURI_SIGNING_PRIVATE_KEY` do repositório, e a chave pública correspondente fica no [`tauri.conf.json`](src-tauri/tauri.conf.json). Quem compila a partir do código não precisa da chave, porque esse build pula a assinatura.
 
 Na sua máquina, `npm run sidecars -- -Latest` testa o yt-dlp mais novo sem mexer na versão fixada.
 

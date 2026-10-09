@@ -4,6 +4,7 @@ import { openFolder } from "../lib/download";
 import { describeError, LANG_LABEL, useT, type Lang } from "../lib/i18n";
 import { playSound } from "../lib/sound";
 import type { AudioFormat, Quality, Settings, SoundEffect } from "../lib/settings";
+import type { UpdateMode } from "../lib/updater";
 
 type Props = {
   settings: Settings;
@@ -18,6 +19,7 @@ const QUALITIES: Quality[] = ["best", "1080", "720", "480"];
 const FORMATS: AudioFormat[] = ["mp3", "m4a", "opus"];
 const SOUNDS: SoundEffect[] = ["boink", "classic", "none"];
 const LANGS: Lang[] = ["pt", "en"];
+const UPDATE_MODES: UpdateMode[] = ["auto", "notify"];
 
 const i = (n: number) => ({ "--i": n }) as CSSProperties;
 
@@ -173,6 +175,24 @@ export function SettingsPage({ settings, update, folder, fallbackFolder }: Props
                   onClick={() => update("language", l)}
                 >
                   {LANG_LABEL[l]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="row">
+            <div>
+              <div className="row-label">{t.settings.updates}</div>
+              <div className="row-hint">{t.settings.updatesHint}</div>
+            </div>
+            <div className="segmented" role="group" aria-label={t.settings.updates}>
+              {UPDATE_MODES.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={settings.updates === m}
+                  onClick={() => update("updates", m)}
+                >
+                  {t.settings.updateLabels[m]}
                 </button>
               ))}
             </div>

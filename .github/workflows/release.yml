@@ -5,6 +5,10 @@
 #   workflow artifact, nothing is published unless "publish" is ticked.
 # - update-yt-dlp.yml calls it after bumping yt-dlp (tags pushed by a workflow don't
 #   trigger other workflows, so it's called directly).
+#
+# Every release also carries `latest.json`, which installed copies of boink read on launch
+# to update themselves. The installer is signed for the updater with the
+# TAURI_SIGNING_PRIVATE_KEY secret (public half in tauri.conf.json); without it the build fails.
 
 name: release
 
@@ -76,28 +80,45 @@ jobs:
           fi
 
       - name: Build installer
-        run: npm run tauri build
+        # Updater signatures only in CI (tauri.release.conf.json), so building from source
+        # doesn't need the private key.
+        run: npm run tauri build -- --config src-tauri/tauri.release.conf.json
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Collect installer and notes
         id: dist
         run: |
           version=${{ steps.version.outputs.version }}
           exe="src-tauri/target/release/bundle/nsis/boink_${version}_x64-setup.exe"
-          test -f "$exe"
+          test -f "$exe" && test -f "$exe.sig"
           sha=$(sha256sum "$exe" | cut -d' ' -f1)
           size=$(( $(stat -c %s "$exe") / 1048576 ))
           ytdlp=$(src-tauri/bin/yt-dlp-x86_64-pc-windows-msvc.exe --version)
           ffmpeg=$(src-tauri/bin/ffmpeg-x86_64-pc-windows-msvc.exe -hide_banner -version | head -1 | cut -d' ' -f3)
           echo "exe=$exe" >> "$GITHUB_OUTPUT"
           url="https://github.com/${{ github.repository }}/releases/download/v${version}/boink_${version}_x64-setup.exe"
+          # What the in-app updater reads from the latest release.
+          VERSION="$version" URL="$url" SIG="$exe.sig" node -e '
+            const fs = require("fs");
+            const target = { signature: fs.readFileSync(process.env.SIG, "utf8").trim(), url: process.env.URL };
+            fs.writeFileSync("latest.json", JSON.stringify({
+              version: process.env.VERSION,
+              notes: `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/tag/v${process.env.VERSION}`,
+              pub_date: new Date().toISOString(),
+              platforms: { "windows-x86_64": target, "windows-x86_64-nsis": target },
+            }, null, 2) + "\n");
+          '
+          cat latest.json
           cat > notes.md <<EOF
           ### Download
 
           **[boink_${version}_x64-setup.exe](${url})** (${size} MB). Windows 10/11, 64-bit. Installs for your user only, no admin rights needed.
 
-          The installer isn't code-signed yet, so Windows SmartScreen may warn about it: click **More info → Run anyway**.
+          The installer isn't code-signed yet, so Windows SmartScreen may warn about it: click **More info → Run anyway**. Once installed, boink updates itself when you open it.
 
-          **Português:** baixe o instalador acima (Windows 10/11, 64 bits). Se o SmartScreen avisar, clique em **Mais informações → Executar assim mesmo**.
+          **Português:** baixe o instalador acima (Windows 10/11, 64 bits). Se o SmartScreen avisar, clique em **Mais informações → Executar assim mesmo**. Depois de instalado, o boink se atualiza sozinho quando você abre o app.
 
           ### Bundled tools
 
@@ -119,9 +140,9 @@ jobs:
         if: env.TAG != ''
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "${{ steps.dist.outputs.exe }}" --clobber
+            gh release upload "$TAG" "${{ steps.dist.outputs.exe }}" latest.json --clobber
           else
-            gh release create "$TAG" "${{ steps.dist.outputs.exe }}" \
+            gh release create "$TAG" "${{ steps.dist.outputs.exe }}" latest.json \
               --title "boink ${TAG#v}" --notes-file notes.md --generate-notes \
               --target "$(git rev-parse HEAD)"
           fi

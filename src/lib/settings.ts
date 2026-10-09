@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { detectLang, type Lang } from "./i18n";
+import type { UpdateMode } from "./updater";
 
 export type Mode = "auto" | "audio" | "mute";
 export type Quality = "best" | "1080" | "720" | "480";
@@ -14,6 +15,8 @@ export type Settings = {
   /** Absolute destination folder. Empty means the default, Downloads/boink. */
   folder: string;
   language: Lang;
+  /** On launch: download and install a new version, or only offer it. */
+  updates: UpdateMode;
 };
 
 const KEY = "boink.settings";
@@ -27,6 +30,7 @@ const DEFAULTS: Settings = {
   sound: "boink",
   folder: "",
   language: detectLang(),
+  updates: "auto",
 };
 
 function load(): Settings {
@@ -45,6 +49,7 @@ function load(): Settings {
       saved.quality = "720";
     }
     if (saved.language !== "pt" && saved.language !== "en") saved.language = detectLang();
+    if (saved.updates !== "auto" && saved.updates !== "notify") saved.updates = "auto";
     return saved;
   } catch {
     return DEFAULTS;

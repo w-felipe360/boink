@@ -24,6 +24,7 @@
 - **Your folder.** Saves to `Downloads\boink` by default, or any folder you choose.
 - **A boink when it's done.** Pick the meme bonk, a softer classic sound, or silence.
 - **English and Portuguese (Brazil)**, following your Windows language, switchable in settings.
+- **Keeps itself up to date.** When you open it, boink checks for a new release and installs it (or just lets you know, if you'd rather). It never restarts in the middle of a download.
 - No account, no ads, no tracking. Everything runs on your computer.
 
 <img src="docs/screenshot-settings-en.png" width="720" alt="boink settings: audio format, download folder, sound when done and language" />
@@ -57,6 +58,7 @@ Releases are built by GitHub Actions on a Windows runner:
 - **New version:** `npm run set-version -- patch` (or `minor`, `major`, `x.y.z`), commit, then `git tag vX.Y.Z && git push --follow-tags`. [`release.yml`](.github/workflows/release.yml) builds the installer and publishes the release.
 - **yt-dlp updates ship by themselves.** Sites change often and yt-dlp keeps up, so every Monday [`update-yt-dlp.yml`](.github/workflows/update-yt-dlp.yml) checks for a new yt-dlp. If there is one, it pins it in [`sidecars.json`](sidecars.json), bumps the patch version and releases a new installer.
 - **Test build:** run the *release* workflow by hand from the Actions tab. The installer is kept as a workflow artifact and nothing gets published.
+- **In-app updates:** every release carries a `latest.json` that installed copies read on launch. The installer is signed for the updater with the `TAURI_SIGNING_PRIVATE_KEY` repository secret, and the matching public key is in [`tauri.conf.json`](src-tauri/tauri.conf.json). Builds from source skip that signature, so they don't need the key.
 
 Locally, `npm run sidecars -- -Latest` tries the newest yt-dlp without changing the pin.
 

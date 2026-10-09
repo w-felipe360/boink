@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { DownloadSimpleIcon, InfoIcon, SlidersHorizontalIcon } from "@phosphor-icons/react";
 import { BoinkMark } from "./components/BoinkMark";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { defaultFolder } from "./lib/download";
 import { I18nContext, STRINGS } from "./lib/i18n";
 import { useDownloadQueue } from "./lib/queue";
 import { preloadSounds } from "./lib/sound";
 import { useSettings } from "./lib/settings";
+import { useAppUpdate } from "./lib/updater";
 import { Home } from "./views/Home";
 import { SettingsPage } from "./views/SettingsPage";
 import { AboutPage } from "./views/AboutPage";
@@ -24,6 +26,8 @@ function App() {
   const [view, setView] = useState<View>("home");
   const { settings, update } = useSettings();
   const queue = useDownloadQueue();
+  const busy = queue.pending > 0;
+  const appUpdate = useAppUpdate(settings.updates, busy);
   const [fallbackFolder, setFallbackFolder] = useState("");
   const t = STRINGS[settings.language];
 
@@ -64,6 +68,7 @@ function App() {
 
         <main className="main">
           <div className="ambient" />
+          <UpdateBanner update={appUpdate} busy={busy} />
           {view === "home" && <Home settings={settings} folder={folder} queue={queue} />}
           {view === "settings" && (
             <SettingsPage
@@ -73,7 +78,7 @@ function App() {
               fallbackFolder={fallbackFolder}
             />
           )}
-          {view === "about" && <AboutPage version={VERSION} />}
+          {view === "about" && <AboutPage version={VERSION} update={appUpdate} />}
         </main>
       </div>
     </I18nContext.Provider>

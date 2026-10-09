@@ -65,3 +65,8 @@ export function openFile(path: string) {
 export function revealFile(path: string) {
   return invoke<void>("reveal_file", { path });
 }
+
+/** Puts the file itself on the clipboard, so Ctrl+V in a chat app pastes the video. */
+export function copyFile(path: string) {
+  return invoke<void>("copy_file", { path });
+}

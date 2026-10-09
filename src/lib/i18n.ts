@@ -28,7 +28,7 @@ const pt = {
     notALink: "isso não parece um link. começa com https://",
     skipped: (n: number) => `${n} ${n === 1 ? "item ignorado" : "itens ignorados"}: não é link`,
     noClipboard: "sem acesso à área de transferência. use ctrl+v",
-    copyFailed: "não consegui copiar o caminho",
+    copyFailed: "não consegui copiar",
     queue: (done: number, total: number) => `fila · ${done} de ${total}`,
     clearFinished: "limpar concluídos",
     summaryAudio: (format: AudioFormat) => `áudio ${format}`,
@@ -44,8 +44,10 @@ const pt = {
     done: "pronto",
     error: "erro",
     open: (file: string) => `abrir ${file}`,
-    copy: "copiar caminho",
-    copied: "copiado",
+    copy: (audio: boolean): string => (audio ? "copiar áudio" : "copiar vídeo"),
+    copyPath: "copiar caminho",
+    copied: "copiado, é só dar ctrl+v",
+    pathCopied: "caminho copiado",
     reveal: "mostrar na pasta",
     retry: "tentar de novo",
     cancel: "cancelar",
@@ -126,6 +128,8 @@ const pt = {
     noFile: "o download terminou, mas o arquivo não foi encontrado",
     mute: (detail: string) => `falha ao remover o áudio: ${detail}`,
     cancelled: "cancelado",
+    missing: "o arquivo não está mais lá",
+    clipboard: "a área de transferência está ocupada. tenta de novo",
   },
 };
 
@@ -148,7 +152,7 @@ const en: Strings = {
     notALink: "that doesn't look like a link. it starts with https://",
     skipped: (n: number) => `${n} ${n === 1 ? "item" : "items"} skipped: not a link`,
     noClipboard: "no clipboard access. use ctrl+v",
-    copyFailed: "couldn't copy the path",
+    copyFailed: "couldn't copy",
     queue: (done: number, total: number) => `queue · ${done} of ${total}`,
     clearFinished: "clear finished",
     summaryAudio: (format: AudioFormat) => `audio ${format}`,
@@ -164,8 +168,10 @@ const en: Strings = {
     done: "done",
     error: "error",
     open: (file: string) => `open ${file}`,
-    copy: "copy path",
-    copied: "copied",
+    copy: (audio: boolean) => (audio ? "copy audio" : "copy video"),
+    copyPath: "copy path",
+    copied: "copied, just ctrl+v",
+    pathCopied: "path copied",
     reveal: "show in folder",
     retry: "try again",
     cancel: "cancel",
@@ -240,6 +246,8 @@ const en: Strings = {
     noFile: "the download finished, but the file wasn't found",
     mute: (detail: string) => `couldn't remove the audio: ${detail}`,
     cancelled: "cancelled",
+    missing: "the file isn't there anymore",
+    clipboard: "the clipboard is busy. try again",
   },
 };
 
@@ -273,6 +281,10 @@ export function describeError(err: unknown, t: Strings) {
       return t.errors.mute(detail);
     case "cancelled":
       return t.errors.cancelled;
+    case "missing":
+      return t.errors.missing;
+    case "clipboard":
+      return t.errors.clipboard;
     default:
       return detail || text;
   }

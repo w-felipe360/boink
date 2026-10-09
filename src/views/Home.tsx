@@ -5,7 +5,9 @@ import {
   type ClipboardEvent,
   type CSSProperties,
   type FormEvent,
+  type MouseEvent,
 } from "react";
+import { Menu } from "@tauri-apps/api/menu";
 import {
   ArrowClockwiseIcon,
   ArrowRightIcon,
@@ -22,7 +24,14 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { BoinkMark } from "../components/BoinkMark";
-import { isValidUrl, openFile, openFolder, revealFile, splitLinks } from "../lib/download";
+import {
+  copyFile,
+  isValidUrl,
+  openFile,
+  openFolder,
+  revealFile,
+  splitLinks,
+} from "../lib/download";
 import { describeError, useT } from "../lib/i18n";
 import { isActive, type DownloadQueue, type QueueItem } from "../lib/queue";
 import { playSound } from "../lib/sound";
@@ -246,7 +255,7 @@ export function Home({ settings, folder, queue }: Props) {
                 onRetry={() => queue.retry(item.id)}
                 onReveal={() => item.path && revealFile(item.path).catch(showError)}
                 onOpen={() => item.path && openFile(item.path).catch(showError)}
-                onCopyError={() => setError(t.home.copyFailed)}
+                onCopyError={(err) => setError(err ? describeError(err, t) : t.home.copyFailed)}
               />
             ))}
           </ul>
@@ -286,20 +295,51 @@ function QueueRow({
   onRetry: () => void;
   onReveal: () => void;
   onOpen: () => void;
-  onCopyError: () => void;
+  onCopyError: (err?: unknown) => void;
 }) {
   const t = useT();
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const copiedTimer = useRef<number | undefined>(undefined);
+
+  function flashCopied(label: string) {
+    setCopied(label);
+    clearTimeout(copiedTimer.current);
+    copiedTimer.current = window.setTimeout(() => setCopied(null), 1800);
+  }
+
+  /** The file itself, so Ctrl+V in a chat app sends the video. */
+  async function copyMedia() {
+    if (!item.path) return;
+    try {
+      await copyFile(item.path);
+      flashCopied(t.row.copied);
+    } catch (err) {
+      onCopyError(err);
+    }
+  }
 
   async function copyPath() {
     if (!item.path) return;
     try {
       await navigator.clipboard.writeText(item.path);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      flashCopied(t.row.pathCopied);
     } catch {
       onCopyError();
     }
+  }
+
+  // Right-click on a finished download: native menu with the less common actions.
+  async function onContextMenu(e: MouseEvent) {
+    if (item.state !== "done") return;
+    e.preventDefault();
+    const menu = await Menu.new({
+      items: [
+        { id: "copy", text: t.row.copy(item.mode === "audio"), action: copyMedia },
+        { id: "copy-path", text: t.row.copyPath, action: copyPath },
+        { id: "reveal", text: t.row.reveal, action: onReveal },
+      ],
+    });
+    await menu.popup();
   }
 
   const Icon = MODE_ICON[item.mode];
@@ -326,7 +366,7 @@ function QueueRow({
   }
 
   return (
-    <li className="queue-item" data-state={item.state}>
+    <li className="queue-item" data-state={item.state} onContextMenu={onContextMenu}>
       <Icon className="queue-icon" size={16} weight="bold" />
       <div className="queue-main">
         {item.state === "done" ? (
@@ -367,9 +407,9 @@ function QueueRow({
             <button
               type="button"
               className="icon-btn"
-              onClick={copyPath}
-              title={copied ? t.row.copied : t.row.copy}
-              data-copied={copied || undefined}
+              onClick={copyMedia}
+              title={copied ?? t.row.copy(item.mode === "audio")}
+              data-copied={copied != null || undefined}
             >
               {copied ? <CheckIcon size={15} weight="bold" /> : <CopyIcon size={15} weight="bold" />}
             </button>

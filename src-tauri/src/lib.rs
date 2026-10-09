@@ -56,6 +56,84 @@ fn reveal_file(path: String) -> Result<(), String> {
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| e.to_string())
 }
 
+/// Puts the file itself on the clipboard, the same way Explorer's Ctrl+C does, so
+/// Ctrl+V in WhatsApp, Discord, Telegram or a folder pastes the video. Only the
+/// path list goes on the clipboard (CF_HDROP); the file contents are never read.
+#[tauri::command]
+fn copy_file(path: String) -> Result<(), String> {
+    if !Path::new(&path).is_file() {
+        return Err(format!("boink:missing:{path}"));
+    }
+    set_clipboard_file(&path)
+}
+
+#[cfg(windows)]
+fn set_clipboard_file(path: &str) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use std::ptr::null_mut;
+    use windows_sys::Win32::Foundation::GlobalFree;
+    use windows_sys::Win32::System::DataExchange::{
+        CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+    };
+    use windows_sys::Win32::System::Memory::{
+        GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE, GMEM_ZEROINIT,
+    };
+    use windows_sys::Win32::System::Ole::CF_HDROP;
+    use windows_sys::Win32::UI::Shell::DROPFILES;
+
+    // DROPFILES header, then the paths as UTF-16, each null-terminated, plus a final null.
+    let wide: Vec<u16> = std::ffi::OsStr::new(path).encode_wide().chain([0, 0]).collect();
+    let header = std::mem::size_of::<DROPFILES>();
+    let size = header + wide.len() * 2;
+
+    unsafe {
+        // Another app may be holding the clipboard for a moment; retry briefly.
+        let mut opened = false;
+        for _ in 0..10 {
+            if OpenClipboard(null_mut()) != 0 {
+                opened = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        if !opened {
+            return Err("boink:clipboard:busy".into());
+        }
+
+        let result = (|| {
+            let mem = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, size);
+            if mem.is_null() {
+                return Err("boink:clipboard:alloc".to_string());
+            }
+            let ptr = GlobalLock(mem) as *mut u8;
+            if ptr.is_null() {
+                GlobalFree(mem);
+                return Err("boink:clipboard:lock".to_string());
+            }
+            let drop = ptr as *mut DROPFILES;
+            (*drop).pFiles = header as u32;
+            (*drop).fWide = 1;
+            std::ptr::copy_nonoverlapping(wide.as_ptr(), ptr.add(header) as *mut u16, wide.len());
+            GlobalUnlock(mem);
+
+            EmptyClipboard();
+            // On success the clipboard owns the memory; on failure it's still ours.
+            if SetClipboardData(CF_HDROP as u32, mem).is_null() {
+                GlobalFree(mem);
+                return Err("boink:clipboard:set".to_string());
+            }
+            Ok(())
+        })();
+        CloseClipboard();
+        result
+    }
+}
+
+#[cfg(not(windows))]
+fn set_clipboard_file(_path: &str) -> Result<(), String> {
+    Err("boink:clipboard:unsupported".into())
+}
+
 /// Stops a download. On Windows yt-dlp.exe is a bootloader that spawns the real
 /// process, so the whole tree has to go or the download keeps running.
 #[tauri::command]
@@ -336,7 +414,8 @@ pub fn run() {
             default_download_folder,
             open_folder,
             open_file,
-            reveal_file
+            reveal_file,
+            copy_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

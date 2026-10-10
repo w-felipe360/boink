@@ -127,6 +127,7 @@ const pt = {
     exit: (code: string) => `yt-dlp saiu com código ${code}`,
     noFile: "o download terminou, mas o arquivo não foi encontrado",
     mute: (detail: string) => `falha ao remover o áudio: ${detail}`,
+    h264: (detail: string) => `falha ao converter para H.264: ${detail}`,
     cancelled: "cancelado",
     missing: "o arquivo não está mais lá",
     clipboard: "a área de transferência está ocupada. tenta de novo",
@@ -245,6 +246,7 @@ const en: Strings = {
     exit: (code: string) => `yt-dlp exited with code ${code}`,
     noFile: "the download finished, but the file wasn't found",
     mute: (detail: string) => `couldn't remove the audio: ${detail}`,
+    h264: (detail: string) => `couldn't convert to H.264: ${detail}`,
     cancelled: "cancelled",
     missing: "the file isn't there anymore",
     clipboard: "the clipboard is busy. try again",
@@ -279,6 +281,8 @@ export function describeError(err: unknown, t: Strings) {
       return t.errors.noFile;
     case "mute":
       return t.errors.mute(detail);
+    case "h264":
+      return t.errors.h264(detail);
     case "cancelled":
       return t.errors.cancelled;
     case "missing":

@@ -197,6 +197,19 @@ fn video_sort(quality: &str) -> String {
     }
 }
 
+/// Capped qualities promise a file that plays and shares anywhere (WhatsApp only takes
+/// H.264), so they get an H.264 file even when the site's own "best" is VP9/AV1/HEVC.
+/// "best" stays untouched: 1440p and 4K only exist in those codecs.
+fn wants_h264(quality: &str) -> bool {
+    matches!(quality, "1080" | "720" | "480")
+}
+
+/// Rules out the codecs WhatsApp and stock Windows can't play. `?` keeps formats whose
+/// codec the site doesn't declare: Instagram's single-file H.264 versions show up that
+/// way, while its DASH streams are labelled VP9. Anything that slips through unlabelled
+/// is caught after the download by `ensure_h264`.
+const NO_VP9_AV1_HEVC: &str = "[vcodec!^=?vp][vcodec!^=?av01][vcodec!^=?hev][vcodec!^=?hvc]";
+
 fn format_args(mode: &str, quality: &str, audio_format: &str) -> Vec<String> {
     match mode {
         "audio" => {
@@ -222,13 +235,25 @@ fn format_args(mode: &str, quality: &str, audio_format: &str) -> Vec<String> {
         // and get their audio stripped afterwards (see `strip_audio`).
         "mute" => vec![
             "-f".into(),
-            "bv/b".into(),
+            if wants_h264(quality) {
+                let f = NO_VP9_AV1_HEVC;
+                format!("bv{f}/b{f}/bv/b")
+            } else {
+                "bv/b".into()
+            },
             "-S".into(),
             video_sort(quality),
         ],
+        // Video-only `bv` in the filtered branch: a single file whose audio yt-dlp can't
+        // see would otherwise be merged with a second audio track.
         _ => vec![
             "-f".into(),
-            "bv*+ba/b".into(),
+            if wants_h264(quality) {
+                let f = NO_VP9_AV1_HEVC;
+                format!("bv{f}+ba/b{f}/bv*+ba/b")
+            } else {
+                "bv*+ba/b".into()
+            },
             "-S".into(),
             video_sort(quality),
             "--merge-output-format".into(),
@@ -262,6 +287,88 @@ async fn strip_audio(app: &AppHandle, file: &Path) -> Result<(), String> {
         ));
     }
     std::fs::rename(&tmp, file).map_err(|e| e.to_string())
+}
+
+/// Codec names ffmpeg reports for the first video and audio streams (`h264`, `vp9`, `aac`...).
+async fn probe_codecs(app: &AppHandle, file: &Path) -> Result<(Option<String>, Option<String>), String> {
+    let output = app
+        .shell()
+        .sidecar("ffmpeg")
+        .map_err(|e| e.to_string())?
+        .args(["-hide_banner", "-i"])
+        .arg(file)
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    // With no output file ffmpeg exits with an error, after printing the stream list.
+    let text = String::from_utf8_lossy(&output.stderr);
+    let codec = |kind: &str| {
+        text.lines()
+            .filter(|l| l.trim_start().starts_with("Stream #"))
+            .find_map(|l| l.split_once(kind))
+            .and_then(|(_, rest)| rest.split([' ', ',']).next())
+            .map(str::to_string)
+    };
+    Ok((codec("Video: "), codec("Audio: ")))
+}
+
+/// Last resort for capped qualities: when the site had nothing in H.264, re-encodes the
+/// video to H.264 (and the audio to AAC if needed) so it plays and pastes anywhere.
+/// Returns the final path, which becomes `.mp4` if the download was something else.
+async fn ensure_h264(
+    app: &AppHandle,
+    running: &Running,
+    id: u32,
+    file: &Path,
+) -> Result<PathBuf, String> {
+    let (video, audio) = probe_codecs(app, file).await?;
+    if video.as_deref().map_or(true, |v| v == "h264") {
+        return Ok(file.to_path_buf());
+    }
+
+    let out = file.with_extension("mp4");
+    let tmp = file.with_extension("boink-h264.mp4");
+    let audio_args: &[&str] = match audio.as_deref() {
+        Some("aac") | None => &["-c:a", "copy"],
+        Some(_) => &["-c:a", "aac", "-b:a", "160k"],
+    };
+
+    let (mut rx, child) = app
+        .shell()
+        .sidecar("ffmpeg")
+        .map_err(|e| e.to_string())?
+        .args(["-y", "-loglevel", "error", "-i"])
+        .arg(file)
+        .args(["-map", "0:v:0", "-map", "0:a:0?"])
+        .args(["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p"])
+        .args(audio_args)
+        .args(["-movflags", "+faststart"])
+        .arg(&tmp)
+        .spawn()
+        .map_err(|e| format!("boink:spawn:{e}"))?;
+    // Registered under the download's id so the cancel button stops the conversion too.
+    running.0.lock().unwrap().insert(id, child);
+
+    let mut stderr = String::new();
+    let mut exit_code: Option<i32> = None;
+    while let Some(event) = rx.recv().await {
+        match event {
+            CommandEvent::Stderr(bytes) => stderr.push_str(&String::from_utf8_lossy(&bytes)),
+            CommandEvent::Terminated(payload) => exit_code = payload.code,
+            _ => {}
+        }
+    }
+    if running.0.lock().unwrap().remove(&id).is_none() {
+        let _ = std::fs::remove_file(&tmp);
+        return Err("boink:cancelled".into());
+    }
+    if exit_code != Some(0) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!("boink:h264:{}", stderr.trim()));
+    }
+    std::fs::remove_file(file).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &out).map_err(|e| e.to_string())?;
+    Ok(out)
 }
 
 /// Downloads `url` with the yt-dlp sidecar into `folder` (or the default one).
@@ -390,14 +497,18 @@ async fn download_media(
         return Err(last_error
             .unwrap_or_else(|| format!("boink:exit:{}", exit_code.unwrap_or(-1))));
     }
-    let file = file.ok_or("boink:no_file")?;
+    let mut file = PathBuf::from(file.ok_or("boink:no_file")?);
 
     if mode == "mute" {
         let _ = on_progress.send(Progress::Processing);
-        strip_audio(&app, Path::new(&file)).await?;
+        strip_audio(&app, &file).await?;
+    }
+    if mode != "audio" && wants_h264(&quality) {
+        let _ = on_progress.send(Progress::Processing);
+        file = ensure_h264(&app, &running, id, &file).await?;
     }
 
-    Ok(file)
+    Ok(file.to_string_lossy().into_owned())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

@@ -1,6 +1,6 @@
 [package]
 name = "boink"
-version = "0.2.3"
+version = "0.2.4"
 description = "Paste a link, get the video. A desktop downloader built on yt-dlp and ffmpeg."
 authors = ["Willian Felipe"]
 license = "MIT"
